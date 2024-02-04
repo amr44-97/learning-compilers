@@ -1,0 +1,3 @@
+* Important Compiler resources
+    1. [[https://github.com/Vexu/arocc][arroc]] "a C compiler in zig"
+    2. [[https://github.com/stars/Ultra-Code/lists/implementing-languages][Malpha]] "Awesome Github Page"
