@@ -13,24 +13,23 @@ const Todo =
 ;
 
 pub fn main() !void {
-    std.debug.print("{s}\n", .{Todo});
+    //std.debug.print("{s}\n", .{Todo});
 
-    // var alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    // const arena = alloc.allocator();
-    // defer alloc.deinit();
-    // const buffer: [:0]const u8 =
-    //     \\ {
-    //     \\  age  = 344;
-    //     \\  long  = 344;
-    //     \\  u64  = 344;
-    //     \\  var  = 344;
-    //     \\  Hello  = 344;
-    //     \\  name  = 344;
-    //     \\ }
-    // ;
+    var alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const arena = alloc.allocator();
+    defer alloc.deinit();
+    const buffer: [:0]const u8 =
+        \\ {
+        \\  age  = 144;
+        \\  long  = 244;
+        \\  u64  = 344;
+        \\  var  = 444;
+        \\  Hello  = 544;
+        \\  name  = 644;
+        \\ }
+    ;
 
-    // var p = try parser.init(arena, buffer);
-    // const node = try p.parseBlock();
-    // p.render_tree(node);
-    //  p.render_nodes();
+    var p = try parser.init(arena, buffer);
+    const node = try p.parseBlock();
+    try p.render_tree(node);
 }

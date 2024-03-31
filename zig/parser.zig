@@ -98,7 +98,7 @@ pub fn eatToken(self: *parser, tag: Token.Tag) ?TokenIndex {
     if (self.tokens.items[self.tok_i].tag == tag) return self.nextToken() else return null;
 }
 
-pub fn parserPrimaryTypeExpr(self: *parser) !Node.Index {
+pub fn parsePrimaryTypeExpr(self: *parser) !Node.Index {
     const token_tags = self.tokens.items;
     switch (token_tags[self.tok_i].tag) {
         .identifier => return try self.addNode(.{
@@ -153,7 +153,7 @@ const operTable = std.enums.directEnumArrayDefault(Token.Tag, OpInfo, .{ .prec =
 
 // 4 + 5
 pub fn parseExprPrecdence(self: *parser, prev_prec: i8) !Node.Index {
-    var lhs = try self.parserPrimaryExpr();
+    var lhs = try self.parsePrimaryTypeExpr();
     if (lhs == null_node) {
         return null_node;
     }
@@ -182,7 +182,7 @@ pub fn parseExprPrecdence(self: *parser, prev_prec: i8) !Node.Index {
 
 // identifier = expression | identifier ;
 pub fn parseAssign(self: *parser) !Node.Index {
-    const lhs = try self.parserPrimaryExpr();
+    const lhs = try self.parsePrimaryTypeExpr();
     if (lhs == null_node) return null_node;
     const eql_token = self.nextToken();
     return try self.addNode(.{
@@ -212,7 +212,7 @@ pub fn parseTypeExpr(self: *parser) !Node.Index {
     // switch(current_token)
     // if open_bracket
     const tokens = self.tokens.items;
-    const elem_token = self.tok_i;
+    //const elem_token = self.tok_i;
     const elem_type = try self.parserPrimaryTypeExpr();
     if (self.nodes.items[elem_type].tag != .identifier) {
         error_log("expected Type expression but found {s}", .{@tagName(self.nodes.items[elem_type].tag)});
@@ -297,11 +297,11 @@ pub fn render_nodes(p: *parser) void {
     }
 }
 
-pub fn render_tree(self: *parser, node_index: Node.Index) void {
-    self.renderAstTree(node_index, "", false);
+pub fn render_tree(self: *parser, node_index: Node.Index) !void {
+    try self.renderAstTree(node_index, "", false);
 }
 
-fn renderAstTree(p: *parser, node: Node.Index, prefix: []const u8, isLeft: bool) void {
+fn renderAstTree(p: *parser, node: Node.Index, prefix: []const u8, isLeft: bool) !void {
     const nodes = p.nodes.items;
     const real_node = nodes[node];
     if (real_node.tag == .root) {
@@ -313,7 +313,7 @@ fn renderAstTree(p: *parser, node: Node.Index, prefix: []const u8, isLeft: bool)
         // if (real_node.data.lhs == 0 and real_node.data.rhs != 0) {
         const block_stmts = p.extra_data.items[real_node.data.lhs..real_node.data.rhs];
         for (block_stmts) |node_i| {
-            p.renderAstTree(node_i, "", true);
+            try p.renderAstTree(node_i, "", true);
         }
         //} else {
         // p.renderAstTree(real_node.data.lhs, "", true);
@@ -333,9 +333,8 @@ fn renderAstTree(p: *parser, node: Node.Index, prefix: []const u8, isLeft: bool)
     const token = p.tokens.items[real_node.main_token];
     print("{s} {s}\n", .{ @tagName(real_node.tag), p.source[token.loc.start..token.loc.end] });
 
-    const new_prefix = std.mem.concat(p.allocator, u8, &[_][]const u8{ prefix, if (isLeft) "│   " else "    " }) catch |err| {
-        error_log("failed to concat prefix at renderAstTree with error {s}", .{@errorName(err)});
-    };
-    renderAstTree(p, real_node.data.lhs, new_prefix, true);
-    renderAstTree(p, real_node.data.rhs, new_prefix, false);
+    const new_prefix = try std.mem.concat(p.allocator, u8, &[_][]const u8{ prefix, if (isLeft) "│   " else "    " });
+
+    try renderAstTree(p, real_node.data.lhs, new_prefix, true);
+    try renderAstTree(p, real_node.data.rhs, new_prefix, false);
 }
