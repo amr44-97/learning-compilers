@@ -1,13 +1,24 @@
+const Type = @import("Type.zig");
+
 pub const TokenIndex = u32;
 
 pub const Node = struct {
     tag: Tag,
     main_token: TokenIndex,
+    ty: Type = .{ .specifier = .void },
     data: Data,
 
-    pub const Data = struct {
-        lhs: Index,
-        rhs: Index,
+    pub const Data = union {
+        unary: Index,
+        binary: struct {
+            lhs: Index,
+            rhs: Index,
+        },
+        range: SubRange,
+        decl: struct {
+            name: TokenIndex,
+            node: Index,
+        },
     };
 
     pub const Index = u32;
@@ -17,20 +28,20 @@ pub const Node = struct {
         var_decl,
         string_literal,
         number_literal,
-        assign,
-        ptr_type,
-        statement,
-        block,
         add,
         sub,
         div,
         mul,
+        assign,
+        array,
+        pointer,
+        typename,
+        statement,
+        block,
     };
 
     pub const SubRange = struct {
-        /// Index into sub_list.
         start: Index,
-        /// Index into sub_list.
         end: Index,
     };
 };

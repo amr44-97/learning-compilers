@@ -1,10 +1,13 @@
 const parser = @This();
+
 const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const Token = @import("tokenizer.zig").Token;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
-const Node = @import("Ast.zig").Node;
+const Ast = @import("Ast.zig");
+const Node = Ast.Node;
+const Type = @import("Type.zig");
 const print = std.debug.print;
 const error_log = @import("error.zig").error_log;
 const warn_log = @import("error.zig").warn_log;
@@ -46,13 +49,11 @@ pub fn init(allocator: Allocator, source: [:0]const u8) !parser {
         try Parser.tokens.append(allocator, token);
         if (token.tag == .eof) break;
     }
-
     _ = try Parser.addNode(.{
         .tag = .root,
         .main_token = 0,
         .data = .{
-            .lhs = 0,
-            .rhs = 0,
+            .binary = .{ .lhs = 0, .rhs = 0 },
         },
     });
 
@@ -104,25 +105,29 @@ pub fn parsePrimaryTypeExpr(self: *parser) !Node.Index {
         .identifier => return try self.addNode(.{
             .tag = .identifier,
             .main_token = self.nextToken(),
-            .data = .{
+            .data = .{ .binary = .{
                 .lhs = 0,
                 .rhs = 0,
-            },
+            } },
         }),
         .string_literal => return try self.addNode(.{
             .tag = .string_literal,
             .main_token = self.nextToken(),
             .data = .{
-                .lhs = 0,
-                .rhs = 0,
+                .binary = .{
+                    .lhs = 0,
+                    .rhs = 0,
+                },
             },
         }),
         .number_literal => return try self.addNode(.{
             .tag = .number_literal,
             .main_token = self.nextToken(),
             .data = .{
-                .lhs = 0,
-                .rhs = 0,
+                .binary = .{
+                    .lhs = 0,
+                    .rhs = 0,
+                },
             },
         }),
         else => {
@@ -172,8 +177,10 @@ pub fn parseExprPrecdence(self: *parser, prev_prec: i8) !Node.Index {
             .tag = info.tag,
             .main_token = op_token,
             .data = .{
-                .lhs = lhs,
-                .rhs = rhs,
+                .binary = .{
+                    .lhs = lhs,
+                    .rhs = rhs,
+                },
             },
         });
     }
@@ -189,8 +196,10 @@ pub fn parseAssign(self: *parser) !Node.Index {
         .tag = .assign,
         .main_token = eql_token,
         .data = .{
-            .lhs = lhs,
-            .rhs = try self.parseExprPrecdence(0),
+            .binary = .{
+                .lhs = lhs,
+                .rhs = try self.parseExprPrecdence(0),
+            },
         },
     });
 }
@@ -204,6 +213,13 @@ pub fn parseStatement(self: *parser) !Node.Index {
     return assign_stmt;
 }
 
+pub fn token_buf(self: *parser, token: Token) []const u8 {
+    return self.source[token.loc.start..token.loc.end];
+}
+
+// Type* name[]  -> [] Type* name
+// Type name[]
+// Type name =
 // ptr_type(Type(* (ptr_type)*)) name([])
 pub fn parseTypeExpr(self: *parser) !Node.Index {
     // parsePrimaryExpr -> Type
@@ -212,16 +228,84 @@ pub fn parseTypeExpr(self: *parser) !Node.Index {
     // switch(current_token)
     // if open_bracket
     const tokens = self.tokens.items;
-    //const elem_token = self.tok_i;
-    const elem_type = try self.parserPrimaryTypeExpr();
-    if (self.nodes.items[elem_type].tag != .identifier) {
-        error_log("expected Type expression but found {s}", .{@tagName(self.nodes.items[elem_type].tag)});
-    }
+    const base_type = try self.expectToken(.identifier);
 
-    switch (tokens[self.tok_i].tag) {
-        .asterisk => {},
-        else => {},
+    const current_token = tokens[self.tok_i];
+
+    switch (current_token.tag) {
+        .asterisk => {
+            var type_name = self.token_buf(tokens[base_type]);
+            while (true) {
+                if (tokens[self.tok_i].tag != .asterisk) break;
+                _ = self.nextToken();
+                type_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ type_name, "*" });
+            }
+            _ = try self.expectToken(.identifier);
+            switch (tokens[self.tok_i].tag) {
+                .open_bracket => {
+                    //var open_bracket = self.nextToken();
+                    //var array_len = try self.parseExprPrecdence(0);
+                    // var close_bracket = try self.expectToken(.close_bracket);
+                    type_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "[]", type_name });
+                },
+                .equal => {
+                    self.tok_i -= 1;
+                },
+                else => {},
+            }
+
+            var ty: Type = .{ .specifier = .pointer };
+            ty.name = type_name;
+
+            return self.addNode(.{
+                .tag = .pointer,
+                .ty = ty,
+                .main_token = base_type,
+                .data = .{
+                    .binary = .{
+                        .lhs = null_node, // base_type
+                        .rhs = null_node,
+                    },
+                },
+            });
+        },
+
+        // expecting variable name
+        .identifier => {
+            // const var_name =
+            _ = self.nextToken();
+            if (tokens[self.tok_i].tag == .open_bracket) {
+                _ = self.nextToken();
+                const cnt = try self.parseExprPrecdence(0);
+                _ = try self.expectToken(.close_bracket);
+                return self.addNode(.{
+                    .tag = .array,
+                    .main_token = base_type,
+                    .data = .{
+                        .binary = .{
+                            .lhs = cnt,
+                            .rhs = null_node,
+                        },
+                    },
+                });
+            } else {
+                return self.addNode(.{
+                    .tag = .typename,
+                    .main_token = base_type,
+                    .data = .{
+                        .binary = .{
+                            .lhs = null_node,
+                            .rhs = null_node,
+                        },
+                    },
+                });
+            }
+        },
+        else => {
+            error_log("expected TypeExpr but found `{s}` at [{d}]", .{ @tagName(tokens[self.tok_i].tag), tokens[self.tok_i].loc.start });
+        },
     }
+    return null_node;
 }
 
 pub fn expectTypeExpr(p: *parser) !Node.Index {
@@ -251,24 +335,30 @@ pub fn parseBlock(self: *parser) !Node.Index {
             .tag = .block,
             .main_token = open_brace,
             .data = .{
-                .lhs = 0,
-                .rhs = 0,
+                .binary = .{
+                    .lhs = 0,
+                    .rhs = 0,
+                },
             },
         }),
         1 => return self.addNode(.{
             .tag = .block,
             .main_token = open_brace,
             .data = .{
-                .lhs = statements[0],
-                .rhs = 0,
+                .binary = .{
+                    .lhs = statements[0],
+                    .rhs = 0,
+                },
             },
         }),
         2 => return self.addNode(.{
             .tag = .block,
             .main_token = open_brace,
             .data = .{
-                .lhs = statements[0],
-                .rhs = statements[1],
+                .binary = .{
+                    .lhs = statements[0],
+                    .rhs = statements[1],
+                },
             },
         }),
         else => {
@@ -280,8 +370,10 @@ pub fn parseBlock(self: *parser) !Node.Index {
                 .tag = .block,
                 .main_token = open_brace,
                 .data = .{
-                    .lhs = span.start,
-                    .rhs = span.end,
+                    .binary = .{
+                        .lhs = span.start,
+                        .rhs = span.end,
+                    },
                 },
             });
         },
@@ -309,32 +401,27 @@ fn renderAstTree(p: *parser, node: Node.Index, prefix: []const u8, isLeft: bool)
     }
     if (real_node.tag == .block) {
         const token = p.tokens.items[real_node.main_token];
+        try std.io.tty.Config.setColor(.escape_codes, std.io.getStdOut(), .yellow);
         print("{s} {s}\n", .{ @tagName(real_node.tag), p.source[token.loc.start..token.loc.end] });
-        // if (real_node.data.lhs == 0 and real_node.data.rhs != 0) {
-        const block_stmts = p.extra_data.items[real_node.data.lhs..real_node.data.rhs];
+        const block_stmts = p.extra_data.items[real_node.data.binary.lhs..real_node.data.binary.rhs];
         for (block_stmts) |node_i| {
             try p.renderAstTree(node_i, "", true);
         }
-        //} else {
-        // p.renderAstTree(real_node.data.lhs, "", true);
-        // p.renderAstTree(real_node.data.rhs, "", true);
-        //}
         print("     {s}\n", .{"}"});
         return;
     }
 
-    print("{s}", .{prefix});
-    if (isLeft) {
-        print("├──", .{});
-    } else {
-        print("└──", .{});
-    }
+    print("{s}{s}", .{ prefix, if (isLeft) "├──" else "└──" });
 
-    const token = p.tokens.items[real_node.main_token];
-    print("{s} {s}\n", .{ @tagName(real_node.tag), p.source[token.loc.start..token.loc.end] });
+    if (real_node.tag == .pointer) {
+        print("{s} {s}\n", .{ @tagName(real_node.tag), real_node.ty.name });
+    } else {
+        const token = p.tokens.items[real_node.main_token];
+        print("{s} {s}\n", .{ @tagName(real_node.tag), p.source[token.loc.start..token.loc.end] });
+    }
 
     const new_prefix = try std.mem.concat(p.allocator, u8, &[_][]const u8{ prefix, if (isLeft) "│   " else "    " });
 
-    try renderAstTree(p, real_node.data.lhs, new_prefix, true);
-    try renderAstTree(p, real_node.data.rhs, new_prefix, false);
+    try renderAstTree(p, real_node.data.binary.lhs, new_prefix, true);
+    try renderAstTree(p, real_node.data.binary.rhs, new_prefix, false);
 }

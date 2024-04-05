@@ -18,18 +18,19 @@ pub fn main() !void {
     var alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const arena = alloc.allocator();
     defer alloc.deinit();
-    const buffer: [:0]const u8 =
-        \\ {
-        \\  age  = 144;
-        \\  long  = 244;
-        \\  u64  = 344;
-        \\  var  = 444;
-        \\  Hello  = 544;
-        \\  name  = 644;
-        \\ }
-    ;
+    //  const buffer: [:0]const u8 =
+    //      \\ {
+    //      \\  age  = 144;
+    //      \\  long  = 244;
+    //      \\  u64  = 344;
+    //      \\  var  = 444;
+    //      \\  Hello  = 544;
+    //      \\  name  = 644;
+    //      \\ }
+    //  ;
 
+    const buffer = "const int*** new_cont[10*1203] = 3245;";
     var p = try parser.init(arena, buffer);
-    const node = try p.parseBlock();
+    const node = try p.parseTypeExpr();
     try p.render_tree(node);
 }
