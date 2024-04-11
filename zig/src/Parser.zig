@@ -217,13 +217,41 @@ pub fn token_buf(self: *parser, token: Token) []const u8 {
     return self.source[token.loc.start..token.loc.end];
 }
 
-// Type* name[]  -> [] Type* name
-// Type name[]
-// Type name =
-// ptr_type(Type(* (ptr_type)*)) name([])
+// char*** name = &n1;
+var found_base_type: bool = false;
 pub fn parseTypeExpr(self: *parser) !Node.Index {
-    _ = self;
-    error_log("function not implemented yet!!", .{});
+    //_ = self;
+    //error_log("function not implemented yet!!", .{});
+    const tokens = self.tokens.items;
+    var node: Node = null_node;
+
+    switch (tokens[self.tok_i].tag) {
+        .identifier => {
+            const current_tok = tokens[self.tok_i];
+            const type_name = self.source[current_tok.loc.start..current_tok.loc.end];
+            node.type = .{
+                .name = type_name,
+                .specifier = current_tok.getKeyword(type_name) orelse void,
+            };
+            found_base_type = true;
+            node = try self.addNode(.{
+                .tag = .typename,
+                .main_token = self.nextToken(),
+                .data = .{
+                    .binary = .{
+                        .lhs = try self.parseTypeExpr(),
+                        .rhs = null_node,
+                    },
+                },
+            });
+        },
+        .asterisk => {
+            if (!found_base_type) {
+                error_log("expected typename found `*`", .{});
+            } else {}
+        },
+    }
+
     return null_node;
 }
 

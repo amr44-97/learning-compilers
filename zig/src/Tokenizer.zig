@@ -12,6 +12,41 @@ pub const Token = struct {
         end: usize,
     };
 
+    pub const keywords = std.ComptimeStringMap(Tag, .{
+        .{ "int", .keyword_int },
+        .{ "void", .keyword_void },
+        .{ "float", .keyword_float },
+        .{ "short", .keyword_short },
+        .{ "signed", .keyword_signed },
+        .{ "unsigned", .keyword_unsigned },
+        .{ "double", .keyword_double },
+        .{ "char", .keyword_char },
+        .{ "asm", .keyword_asm },
+        .{ "break", .keyword_break },
+        .{ "catch", .keyword_catch },
+        .{ "const", .keyword_const },
+        .{ "continue", .keyword_continue },
+        .{ "defer", .keyword_defer },
+        .{ "else", .keyword_else },
+        .{ "enum", .keyword_enum },
+        .{ "extern", .keyword_extern },
+        .{ "for", .keyword_for },
+        .{ "if", .keyword_if },
+        .{ "inline", .keyword_inline },
+        .{ "pub", .keyword_pub },
+        .{ "return", .keyword_return },
+        .{ "struct", .keyword_struct },
+        .{ "switch", .keyword_switch },
+        .{ "try", .keyword_try },
+        .{ "union", .keyword_union },
+        .{ "volatile", .keyword_volatile },
+        .{ "while", .keyword_while },
+    });
+
+    pub fn getKeyword(bytes: []const u8) ?Tag {
+        return keywords.get(bytes);
+    }
+
     pub const Tag = enum {
         eof,
         invalid,
@@ -33,6 +68,34 @@ pub const Token = struct {
         comma,
         asterisk,
         line_comment,
+        keyword_int,
+        keyword_void,
+        keyword_float,
+        keyword_short,
+        keyword_signed,
+        keyword_unsigned,
+        keyword_double,
+        keyword_char,
+        keyword_asm,
+        keyword_break,
+        keyword_catch,
+        keyword_const,
+        keyword_continue,
+        keyword_defer,
+        keyword_else,
+        keyword_enum,
+        keyword_extern,
+        keyword_for,
+        keyword_if,
+        keyword_inline,
+        keyword_pub,
+        keyword_return,
+        keyword_struct,
+        keyword_switch,
+        keyword_try,
+        keyword_union,
+        keyword_volatile,
+        keyword_while,
     };
 };
 

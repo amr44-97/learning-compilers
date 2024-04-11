@@ -1,14 +1,22 @@
-CC = clang++
+CC := clang++
 
-CFLAGS = -Wall -pedantic 
-OBJ = tokenizer.o
+CFLAGS := -Wall -std=c++23 
 
-.PHONY: tokenizer.o  compile 
+OBJ := tokenizer.o
 
-compile: main.cpp tokenizer.h tokenizer.cpp parser.h parser.cpp 
-	$(CC) $(CFLAGS) $(OBJ) $(SRC) -o compile
+SRC := src/main.cpp
 
-tokenizer.o: tokenizer.h tokenizer.cpp 
-	$(CC) -c tokenizer.cpp
+BIN_DIR := bin
+EXE = compiler-v1
 
+.PHONY: build 
+
+#build: src/main.cpp src/tokenizer.h src/tokenizer.cpp src/parser.h src/parser.cpp 
+#	$(CC) $(CFLAGS) tokenizer.cpp $(SRC) -o $(BIN_DIR)/$(EXE)
+
+build: $(wildcard src/*.cpp)
+	$(CC) $(CFLAGS) src/tokenizer.cpp $(SRC) -o $(BIN_DIR)/$(EXE)
+
+clean:
+	rm  $(BIN_DIR)/$(EXE)
 

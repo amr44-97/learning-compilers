@@ -12,10 +12,16 @@ pub const Specifier = enum {
     uchar,
     short,
     ushort,
-    pointer,
+    ptr,
     array,
     bool,
     @"struct",
     @"enum",
     @"union",
 };
+
+pub fn spec_from_tag(tag: anytype) Specifier {
+    return switch (tag) {
+        .keyword_int => .int,
+    };
+}

@@ -1,11 +1,10 @@
 const Type = @import("Type.zig");
-
 pub const TokenIndex = u32;
 
 pub const Node = struct {
     tag: Tag,
     main_token: TokenIndex,
-    ty: Type = .{ .specifier = .void },
+    type: Type = .{ .specifier = .void },
     data: Data,
 
     pub const Data = union {
