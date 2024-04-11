@@ -1,0 +1,8 @@
+import std;
+
+fn main() -> void {
+   let name =  std::io::stdin::get();
+   std::printf("Hello {}\n",name);
+   if(name == "amr") return 0;
+   else std::printf("found!\n");
+}
