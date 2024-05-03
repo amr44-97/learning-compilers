@@ -262,9 +262,9 @@ pub const Tokenizer = struct {
                 .identifier => switch (c) {
                     'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
                     else => {
-                        if (Token.getKeyword(self.buffer[result.loc.start..self.index])) |tag| {
-                            result.tag = tag;
-                        }
+                        // if (Token.getKeyword(self.buffer[result.loc.start..self.index])) |tag| {
+                        result.tag = .identifier; //tag
+                        //}
                         break;
                     },
                 },

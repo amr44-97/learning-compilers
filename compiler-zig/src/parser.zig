@@ -100,8 +100,9 @@ pub inline fn advance(self: *Parser) void {
     self.tok_i += 1;
 }
 
-pub inline fn next(p: *Parser) struct {
+pub inline fn peekNext(p: *Parser) struct {
     token: Token,
+    index: TokenIndex,
     buf: []const u8,
 
     pub inline fn tag(self: @This()) Token.Tag {
@@ -112,11 +113,13 @@ pub inline fn next(p: *Parser) struct {
     const buf = p.source[token.loc.start..token.loc.end];
     return .{
         .buf = buf,
+        .index = @as(TokenIndex, @intCast(p.tok_i + 1)),
         .token = token,
     };
 }
 pub inline fn current(p: *Parser) struct {
     token: Token,
+    index: TokenIndex,
     buf: []const u8,
 
     pub inline fn tag(self: @This()) Token.Tag {
@@ -127,9 +130,11 @@ pub inline fn current(p: *Parser) struct {
     const buf = p.source[token.loc.start..token.loc.end];
     return .{
         .buf = buf,
+        .index = @as(TokenIndex, @intCast(p.tok_i)),
         .token = token,
     };
 }
+
 pub inline fn is_current(self: *Parser, tag: Token.Tag) bool {
     return self.current().token.tag == tag;
 }
@@ -299,23 +304,26 @@ fn pointer_to(p: *Parser, base_ty: Type) !Node.Index {
 
 pub fn getTypeName(p: *Parser, node: Node.Index) ![]const u8 {
     const real_node = p.nodes.items[node];
+    const buf = try p.allocator.alloc(u8, 128);
     if (real_node.tag == .ptr_type) {
-        const buf = try p.allocator.alloc(u8, 128);
         const base_type = real_node.data.unary;
         const ftt = p.nodes.items[base_type];
         const bbb = p.tokens.items[ftt.main_token];
         const n = try std.fmt.bufPrint(buf, "*{s}", .{p.source[bbb.loc.start..bbb.loc.end]});
         return n;
+    } else if (real_node.tag == .typename) {
+        const base_type = real_node.main_token;
+        const bbb = p.tokens.items[base_type];
+        const n = try std.fmt.bufPrint(buf, "{s}", .{p.source[bbb.loc.start..bbb.loc.end]});
+        return n;
     }
     return error.ExpectedTypeName;
 }
 
-pub fn parseTypeExpr(p: *Parser) !Node.Index {
+pub fn parseTypeExpr_2(p: *Parser) !Node.Index {
     switch (p.current().tag()) {
         .asterisk => {
             const astr = p.nextToken();
-            //         const base_t_node = try p.parseTypeExpr();
-            //           var base_type = p.nodes.items[base_t_node].type;
             return try p.addNode(.{
                 .tag = .ptr_type,
                 .main_token = astr,
@@ -323,7 +331,6 @@ pub fn parseTypeExpr(p: *Parser) !Node.Index {
             });
         },
         .identifier => {
-            error_log("Type not handled yet!! -> {s}", .{@tagName(p.current().tag())});
             const id = @as(u32, @intCast(p.tok_i));
             const result = Type{ .name = id, .specifier = .user_defined_type };
             return try p.addNode(.{
@@ -340,6 +347,52 @@ pub fn parseTypeExpr(p: *Parser) !Node.Index {
                 .main_token = id,
                 .type = result,
             });
+        },
+        else => {
+            error_log("Type not handled yet!! -> {s}", .{@tagName(p.current().tag())});
+            return error.ParsingFailed;
+        },
+    }
+}
+pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
+    switch (p.current().tag()) {
+        .asterisk => {
+            const astr = p.nextToken();
+            //         const base_t_node = try p.parseTypeExpr();
+            //           var base_type = p.nodes.items[base_t_node].type;
+            return try p.addNode(.{
+                .tag = .ptr_type,
+                .main_token = astr,
+                .data = .{ .unary = base_type },
+            });
+        },
+        .identifier => {
+            const id = @as(u32, @intCast(p.tok_i));
+            const result = Type{ .name = id, .specifier = .user_defined_type };
+            const base_ty = try p.addNode(.{
+                .tag = .typename,
+                .main_token = id,
+                .type = result,
+            });
+            // const nxt_tag = p.peekNext().tag();
+            //  if (nxt_tag == .asterisk or nxt_tag == .open_brace) {
+            p.advance();
+            return try p.parseTypeExpr(base_ty);
+            //  } else {
+            //      return base_ty;
+            //  }
+        },
+        .keyword_char => {
+            const id = @as(u32, @intCast(p.tok_i));
+            const result = Type{ .name = id, .specifier = .char };
+            return try p.addNode(.{
+                .tag = .typename,
+                .main_token = id,
+                .type = result,
+            });
+        },
+        .semicolon, .comma, .equal => {
+            return base_type;
         },
         else => {
             error_log("Type not handled yet!! -> {s}", .{@tagName(p.current().tag())});
@@ -455,7 +508,7 @@ fn renderAstTree(p: *Parser, node: Node.Index, prefix: []const u8, isLeft: bool)
 
     print("{s}{s}", .{ prefix, if (isLeft) "├──" else "└──" });
 
-    if (real_node.tag == .pointer) {
+    if (real_node.tag == .ptr_type) {
         const tokf = p.token_buf(p.tokens.items[real_node.type.name]);
         print("[{d}]- {s} {s}\n", .{ node, @tagName(real_node.tag), tokf });
     } else {

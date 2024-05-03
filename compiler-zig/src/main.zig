@@ -18,7 +18,7 @@ pub fn main() !void {
     var alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const arena = alloc.allocator();
     defer alloc.deinit();
-    const buffer: [:0]const u8 =
+    const buffer = [_][:0]const u8{
         \\ {
         \\  age  = 144;
         \\  long  = 244;
@@ -27,11 +27,13 @@ pub fn main() !void {
         \\  Hello  = 544;
         \\  name  = 644;
         \\ }
-    ;
+        ,
+        "char;",
+    };
 
-    const buffer2 = "* char";
-    _ = buffer;
-    var p = try parser.init(arena, buffer2);
-    const node = try p.parseTypeExpr();
+    var p = try parser.init(arena, buffer[1]);
+
+    const node = try p.parseTypeExpr(0);
+    p.render_nodes();
     std.debug.print("{s}\n", .{try p.getTypeName(node)});
 }
