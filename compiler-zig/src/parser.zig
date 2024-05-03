@@ -58,9 +58,7 @@ pub fn init(allocator: Allocator, source: [:0]const u8) !Parser {
     _ = try parser.addNode(.{
         .tag = .root,
         .main_token = 0,
-        .data = .{
-            .binary = .{ .lhs = 0, .rhs = 0 },
-        },
+        .data = .{ .lhs = 0, .rhs = 0 },
     });
 
     return parser;
@@ -157,29 +155,25 @@ pub fn parsePrimaryTypeExpr(self: *Parser) !Node.Index {
         .identifier => return try self.addNode(.{
             .tag = .identifier,
             .main_token = self.nextToken(),
-            .data = .{ .binary = .{
+            .data = .{
                 .lhs = 0,
                 .rhs = 0,
-            } },
+            },
         }),
         .string_literal => return try self.addNode(.{
             .tag = .string_literal,
             .main_token = self.nextToken(),
             .data = .{
-                .binary = .{
-                    .lhs = 0,
-                    .rhs = 0,
-                },
+                .lhs = 0,
+                .rhs = 0,
             },
         }),
         .number_literal => return try self.addNode(.{
             .tag = .number_literal,
             .main_token = self.nextToken(),
             .data = .{
-                .binary = .{
-                    .lhs = 0,
-                    .rhs = 0,
-                },
+                .lhs = 0,
+                .rhs = 0,
             },
         }),
         else => {
@@ -231,10 +225,8 @@ pub fn parseExprPrecdence(self: *Parser, prev_prec: i8) !Node.Index {
             .tag = info.tag,
             .main_token = op_token,
             .data = .{
-                .binary = .{
-                    .lhs = lhs,
-                    .rhs = rhs,
-                },
+                .lhs = lhs,
+                .rhs = rhs,
             },
         });
     }
@@ -250,10 +242,8 @@ pub fn parseAssign(self: *Parser) !Node.Index {
         .tag = .assign,
         .main_token = eql_token,
         .data = .{
-            .binary = .{
-                .lhs = lhs,
-                .rhs = try self.parseExprPrecdence(0),
-            },
+            .lhs = lhs,
+            .rhs = try self.parseExprPrecdence(0),
         },
     });
 }
@@ -327,7 +317,10 @@ pub fn parseTypeExpr_2(p: *Parser) !Node.Index {
             return try p.addNode(.{
                 .tag = .ptr_type,
                 .main_token = astr,
-                .data = .{ .unary = try p.parseTypeExpr() },
+                .data = .{
+                    .lhs = try p.parseTypeExpr(),
+                    .rhs = null_node,
+                },
             });
         },
         .identifier => {
@@ -357,13 +350,18 @@ pub fn parseTypeExpr_2(p: *Parser) !Node.Index {
 pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
     switch (p.current().tag()) {
         .asterisk => {
-            const astr = p.nextToken();
-            //         const base_t_node = try p.parseTypeExpr();
-            //           var base_type = p.nodes.items[base_t_node].type;
+            const asterisk = p.nextToken();
+            if (p.current().tag() == .asterisk) {
+                return try p.addNode(.{
+                    .tag = .ptr_type,
+                    .main_token = asterisk,
+                    .data = .{ .lhs = try p.parseTypeExpr(base_type) },
+                });
+            }
             return try p.addNode(.{
                 .tag = .ptr_type,
-                .main_token = astr,
-                .data = .{ .unary = base_type },
+                .main_token = asterisk,
+                .data = .{ .lhs = base_type },
             });
         },
         .identifier => {
@@ -373,14 +371,10 @@ pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
                 .tag = .typename,
                 .main_token = id,
                 .type = result,
+                .data = .{},
             });
-            // const nxt_tag = p.peekNext().tag();
-            //  if (nxt_tag == .asterisk or nxt_tag == .open_brace) {
             p.advance();
             return try p.parseTypeExpr(base_ty);
-            //  } else {
-            //      return base_ty;
-            //  }
         },
         .keyword_char => {
             const id = @as(u32, @intCast(p.tok_i));
@@ -389,13 +383,14 @@ pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
                 .tag = .typename,
                 .main_token = id,
                 .type = result,
+                .data = .{},
             });
         },
         .semicolon, .comma, .equal => {
             return base_type;
         },
         else => {
-            error_log("Type not handled yet!! -> {s}", .{@tagName(p.current().tag())});
+            error_log(" unexpected type : {s}", .{@tagName(p.current().tag())});
             return error.ParsingFailed;
         },
     }
@@ -430,30 +425,24 @@ pub fn parseBlock(self: *Parser) !Node.Index {
             .tag = .block,
             .main_token = open_brace,
             .data = .{
-                .binary = .{
-                    .lhs = 0,
-                    .rhs = 0,
-                },
+                .lhs = 0,
+                .rhs = 0,
             },
         }),
         1 => return self.addNode(.{
             .tag = .block,
             .main_token = open_brace,
             .data = .{
-                .binary = .{
-                    .lhs = statements[0],
-                    .rhs = 0,
-                },
+                .lhs = statements[0],
+                .rhs = 0,
             },
         }),
         2 => return self.addNode(.{
             .tag = .block,
             .main_token = open_brace,
             .data = .{
-                .binary = .{
-                    .lhs = statements[0],
-                    .rhs = statements[1],
-                },
+                .lhs = statements[0],
+                .rhs = statements[1],
             },
         }),
         else => {
@@ -465,10 +454,8 @@ pub fn parseBlock(self: *Parser) !Node.Index {
                 .tag = .block,
                 .main_token = open_brace,
                 .data = .{
-                    .binary = .{
-                        .lhs = span.start,
-                        .rhs = span.end,
-                    },
+                    .lhs = span.start,
+                    .rhs = span.end,
                 },
             });
         },
@@ -498,7 +485,7 @@ fn renderAstTree(p: *Parser, node: Node.Index, prefix: []const u8, isLeft: bool)
         const token = p.tokens.items[real_node.main_token];
         try std.io.tty.Config.setColor(.escape_codes, std.io.getStdOut(), .yellow);
         print("{s} {s}\n", .{ @tagName(real_node.tag), p.source[token.loc.start..token.loc.end] });
-        const block_stmts = p.extra_data.items[real_node.data.binary.lhs..real_node.data.binary.rhs];
+        const block_stmts = p.extra_data.items[real_node.data.lhs..real_node.data.rhs];
         for (block_stmts) |node_i| {
             try p.renderAstTree(node_i, "", true);
         }
@@ -508,16 +495,16 @@ fn renderAstTree(p: *Parser, node: Node.Index, prefix: []const u8, isLeft: bool)
 
     print("{s}{s}", .{ prefix, if (isLeft) "├──" else "└──" });
 
-    if (real_node.tag == .ptr_type) {
-        const tokf = p.token_buf(p.tokens.items[real_node.type.name]);
-        print("[{d}]- {s} {s}\n", .{ node, @tagName(real_node.tag), tokf });
-    } else {
-        const token = p.tokens.items[real_node.main_token];
-        print("[{d}]- {s} {s}\n", .{ node, @tagName(real_node.tag), p.source[token.loc.start..token.loc.end] });
-    }
+    // if (real_node.tag == .ptr_type) {
+    //     const tokf = p.token_buf(p.tokens.items[real_node.type.name]);
+    //     print("[{d}]- {s} {s}\n", .{ node, @tagName(real_node.tag), tokf });
+    // } else {
+    const token = p.tokens.items[real_node.main_token];
+    print("[{d}]- {s} {s}\n", .{ node, @tagName(real_node.tag), p.source[token.loc.start..token.loc.end] });
+    // }
 
     const new_prefix = try std.mem.concat(p.allocator, u8, &[_][]const u8{ prefix, if (isLeft) "│   " else "    " });
 
-    try renderAstTree(p, real_node.data.binary.lhs, new_prefix, true);
-    try renderAstTree(p, real_node.data.binary.rhs, new_prefix, false);
+    try renderAstTree(p, real_node.data.lhs, new_prefix, true);
+    try renderAstTree(p, real_node.data.rhs, new_prefix, false);
 }

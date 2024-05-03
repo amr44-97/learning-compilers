@@ -28,12 +28,14 @@ pub fn main() !void {
         \\  name  = 644;
         \\ }
         ,
-        "char;",
+        "char***;",
     };
 
     var p = try parser.init(arena, buffer[1]);
 
     const node = try p.parseTypeExpr(0);
     p.render_nodes();
-    std.debug.print("{s}\n", .{try p.getTypeName(node)});
+    try p.render_tree(node);
+    // std.debug.print("{s}\n", .{try p.getTypeName(node)});
+
 }

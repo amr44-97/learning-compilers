@@ -5,20 +5,11 @@ pub const Node = struct {
     tag: Tag,
     main_token: TokenIndex,
     type: Type = .{ .specifier = .void },
-    data: Data = .{ .none = {} },
+    data: Data,
 
-    pub const Data = union {
-        none: void,
-        unary: Index,
-        binary: struct {
-            lhs: Index,
-            rhs: Index,
-        },
-        range: SubRange,
-        decl: struct {
-            name: TokenIndex,
-            node: Index,
-        },
+    pub const Data = struct {
+        lhs: Index = 0,
+        rhs: Index = 0,
     };
 
     pub const Index = u32;
