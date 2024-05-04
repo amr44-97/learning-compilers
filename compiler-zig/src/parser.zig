@@ -116,6 +116,25 @@ pub inline fn peekNext(p: *Parser) struct {
         .token = token,
     };
 }
+
+pub inline fn peekAt(p: *Parser, token_index: usize) struct {
+    token: Token,
+    index: TokenIndex,
+    buf: []const u8,
+
+    pub inline fn tag(self: @This()) Token.Tag {
+        return self.token.tag;
+    }
+} {
+    const token = p.tokens.items[token_index];
+    const buf = p.source[token.loc.start..token.loc.end];
+    return .{
+        .buf = buf,
+        .index = @as(TokenIndex, @intCast(token_index)),
+        .token = token,
+    };
+}
+
 pub inline fn current(p: *Parser) struct {
     token: Token,
     index: TokenIndex,
@@ -182,7 +201,18 @@ pub fn parsePrimaryExpr(self: *Parser) !Node.Index {
         },
     }
 }
-
+fn expectExpr(p: *Parser) !Node.Index {
+    const previous_tok = p.peekAt(p.tok_i - 1);
+    const node = try p.parseExprPrecdence(0);
+    if (node == 0) {
+        const str = @tagName(p.tokens.items[p.tok_i].tag);
+        const loc = p.tokens.items[p.tok_i].loc.start;
+        error_log("expected primary expression after `{s}` but found `{s}` at [{d}]", .{ previous_tok.buf, str, loc });
+        //try p.addDiagnostic(.expected_primary_expr, "but found {s} at [{d}]", .{ str, loc });
+        return 0;
+    }
+    return node;
+}
 fn expectPrimaryExpr(p: *Parser) !Node.Index {
     const node = try p.parsePrimaryExpr();
     if (node == 0) {
@@ -208,9 +238,8 @@ const operTable = std.enums.directEnumArrayDefault(Token.Tag, OpInfo, .{ .prec =
 // 4 + 5
 pub fn parseExprPrecdence(self: *Parser, prev_prec: i8) !Node.Index {
     var lhs = try self.parsePrimaryExpr();
-    if (lhs == null_node) {
+    if (lhs == null_node)
         return null_node;
-    }
 
     while (true) {
         const op_tag = self.tokens.items[self.tok_i].tag;
@@ -311,8 +340,21 @@ pub fn getTypeName(p: *Parser, node: Node.Index) ![]const u8 {
     return error.ExpectedTypeName;
 }
 
-pub fn parseTypeExpr_2(p: *Parser) !Node.Index {
+pub fn parseTypeExpr(p: *Parser) !Node.Index {
     switch (p.current().tag()) {
+        .open_bracket => {
+            const l_bracket = p.nextToken();
+            const elem_len = try p.parseExprPrecdence(0);
+            _ = try p.expectToken(.close_bracket);
+            return try p.addNode(.{
+                .tag = .array_type,
+                .main_token = l_bracket,
+                .data = .{
+                    .lhs = try p.parseTypeExpr(),
+                    .rhs = elem_len,
+                },
+            });
+        },
         .asterisk => {
             const astr = p.nextToken();
             return try p.addNode(.{
@@ -326,20 +368,22 @@ pub fn parseTypeExpr_2(p: *Parser) !Node.Index {
         },
         .identifier => {
             const id = @as(u32, @intCast(p.tok_i));
-            const result = Type{ .name = id, .specifier = .user_defined_type };
+            // const result = Type{ .name = id, .specifier = .user_defined_type };
             return try p.addNode(.{
                 .tag = .typename,
                 .main_token = id,
-                .type = result,
+                //  .type = result,
+                .data = .{},
             });
         },
         .keyword_char => {
             const id = @as(u32, @intCast(p.tok_i));
-            const result = Type{ .name = id, .specifier = .char };
+            //  const result = Type{ .name = id, .specifier = .char };
             return try p.addNode(.{
                 .tag = .typename,
                 .main_token = id,
-                .type = result,
+                //.type = result,
+                .data = .{},
             });
         },
         else => {
@@ -348,7 +392,10 @@ pub fn parseTypeExpr_2(p: *Parser) !Node.Index {
         },
     }
 }
-pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
+
+// parse C-types : {char* , int var_name[len]}
+// where the types comes before the declaration
+pub fn parseCtypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
     switch (p.current().tag()) {
         .open_bracket => {
             std.debug.assert(base_type != 0);
@@ -375,11 +422,11 @@ pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
                     return try p.addNode(.{
                         .tag = .ptr_type,
                         .main_token = p.nextToken(),
-                        .data = .{ .lhs = try p.parseTypeExpr(ptr_t) },
+                        .data = .{ .lhs = try p.parseCtypeExpr(ptr_t) },
                     });
                 },
                 .open_bracket => {
-                    return try p.parseTypeExpr(ptr_t);
+                    return try p.parseCtypeExpr(ptr_t);
                 },
                 .identifier => {
                     p.advance();
@@ -404,7 +451,7 @@ pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
         .identifier => {
             if (base_type != 0) {
                 p.advance();
-                return try p.parseTypeExpr(base_type);
+                return try p.parseCtypeExpr(base_type);
             }
             const t_name = @as(u32, @intCast(p.tok_i));
             const result = Type{ .name = t_name, .specifier = .user_defined_type };
@@ -421,14 +468,14 @@ pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
                 var tmp: Node.Index = 0;
                 if (p.eatToken(.open_bracket)) |tok| {
                     p.tok_i -= 1;
-                    tmp = try p.parseTypeExpr(base_ty);
+                    tmp = try p.parseCtypeExpr(base_ty);
                     _ = try p.expectToken(.close_bracket);
                     p.tok_i = tok - 1;
                     return tmp;
                 }
                 return base_ty;
             }
-            return try p.parseTypeExpr(base_ty);
+            return try p.parseCtypeExpr(base_ty);
         },
 
         .keyword_char => {

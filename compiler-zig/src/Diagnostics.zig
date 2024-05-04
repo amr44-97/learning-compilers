@@ -21,11 +21,11 @@ pub const CompilationError = struct {
 };
 
 pub fn error_log(comptime format: []const u8, args: anytype) void {
-    std.debug.print(Color.get(.bold) ++ Color.get(.red) ++ "ERROR:" ++ format ++ Color.get(.reset) ++ "\n", args);
+    std.debug.print(Color.get(.bold) ++ Color.get(.red) ++ "[ERROR]: " ++ format ++ Color.get(.reset) ++ "\n", args);
     std.process.exit(3);
 }
 pub fn warn_log(comptime format: []const u8, args: anytype) void {
-    std.debug.print(Color.get(.yellow) ++ "Warning:" ++ format ++ Color.get(.reset) ++ "\n", args);
+    std.debug.print(Color.get(.yellow) ++ "[Warning]: " ++ format ++ Color.get(.reset) ++ "\n", args);
 }
 
 pub const Color = enum {

@@ -169,7 +169,6 @@ pub const Tokenizer = struct {
                         }
                         break;
                     },
-
                     ' ', '\n', '\t', '\r' => {
                         result.loc.start = self.index + 1;
                     },
@@ -182,7 +181,6 @@ pub const Tokenizer = struct {
                     '0'...'9' => {
                         state = .number_literal;
                     },
-
                     ':' => {
                         state = .colon;
                     },

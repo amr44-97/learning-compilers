@@ -18,10 +18,7 @@ pub fn main() !void {
     const arena = alloc.allocator();
     defer alloc.deinit();
     try stdout.print("> ", .{});
-    // const in_buffer = try arena.allocSentinel(u8, 256, 0);
-    //   _ = in_buffer; // autofix
     const result = try stdin.reader().readUntilDelimiterAlloc(arena, '\n', 256);
-    std.debug.print("{s}\n", .{result});
     const rss = try std.mem.concatWithSentinel(arena, u8, &[_][]u8{result}, 0);
     const buffer = [_][:0]const u8{
         \\ {
@@ -38,7 +35,7 @@ pub fn main() !void {
     _ = buffer;
     var p = try parser.init(arena, rss);
 
-    const node = try p.parseTypeExpr(0);
+    const node = try p.parseTypeExpr();
     //  p.render_nodes();
     try p.render_tree(node);
     // std.debug.print("{s}\n", .{try p.getTypeName(node)});

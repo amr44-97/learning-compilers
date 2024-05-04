@@ -1,5 +1,7 @@
 #+title: Notes
 
+How to use unicode instead of ascii chars
+
 Reading files with Sentinel
 #+begin_src zig
 pub fn read_file(allocator: Allocator, name: []const u8) ![:0]const u8 {
