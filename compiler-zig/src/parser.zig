@@ -94,6 +94,7 @@ pub inline fn advance_token(self: *Parser) void {
     _ = self.nextToken();
 }
 
+// equals nextToken with no return
 pub inline fn advance(self: *Parser) void {
     self.tok_i += 1;
 }
@@ -149,7 +150,7 @@ pub fn eatToken(self: *Parser, tag: Token.Tag) ?TokenIndex {
     if (self.tokens.items[self.tok_i].tag == tag) return self.nextToken() else return null;
 }
 
-pub fn parsePrimaryTypeExpr(self: *Parser) !Node.Index {
+pub fn parsePrimaryExpr(self: *Parser) !Node.Index {
     const token_tags = self.tokens.items;
     switch (token_tags[self.tok_i].tag) {
         .identifier => return try self.addNode(.{
@@ -182,8 +183,8 @@ pub fn parsePrimaryTypeExpr(self: *Parser) !Node.Index {
     }
 }
 
-fn expectPrimaryTypeExpr(p: *Parser) !Node.Index {
-    const node = try p.parsePrimaryTypeExpr();
+fn expectPrimaryExpr(p: *Parser) !Node.Index {
+    const node = try p.parsePrimaryExpr();
     if (node == 0) {
         const str = @tagName(p.tokens.items[p.tok_i].tag);
         const loc = p.tokens.items[p.tok_i].loc.start;
@@ -206,7 +207,7 @@ const operTable = std.enums.directEnumArrayDefault(Token.Tag, OpInfo, .{ .prec =
 
 // 4 + 5
 pub fn parseExprPrecdence(self: *Parser, prev_prec: i8) !Node.Index {
-    var lhs = try self.parsePrimaryTypeExpr();
+    var lhs = try self.parsePrimaryExpr();
     if (lhs == null_node) {
         return null_node;
     }
@@ -235,7 +236,7 @@ pub fn parseExprPrecdence(self: *Parser, prev_prec: i8) !Node.Index {
 
 // identifier = expression | identifier ;
 pub fn parseAssign(self: *Parser) !Node.Index {
-    const lhs = try self.parsePrimaryTypeExpr();
+    const lhs = try self.parsePrimaryExpr();
     if (lhs == null_node) return null_node;
     const eql_token = self.nextToken();
     return try self.addNode(.{
@@ -349,14 +350,47 @@ pub fn parseTypeExpr_2(p: *Parser) !Node.Index {
 }
 pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
     switch (p.current().tag()) {
+        .open_bracket => {
+            std.debug.assert(base_type != 0);
+            const o_brace = p.nextToken();
+            const array_len = try p.parseExprPrecdence(0);
+            _ = try p.expectToken(.close_brace);
+            return try p.addNode(.{
+                .tag = .array_type,
+                .main_token = o_brace,
+                .data = .{ .lhs = base_type, .rhs = array_len },
+            });
+        },
+        // int**  nn[] -> new_type(T: ptr_type, base : int)
         .asterisk => {
-            const asterisk = p.nextToken();
-            if (p.current().tag() == .asterisk) {
-                return try p.addNode(.{
-                    .tag = .ptr_type,
-                    .main_token = asterisk,
-                    .data = .{ .lhs = try p.parseTypeExpr(base_type) },
-                });
+            const asterisk = p.current().index;
+            const ptr_t = try p.addNode(.{
+                .tag = .ptr_type,
+                .main_token = asterisk,
+                .data = .{ .lhs = base_type },
+            });
+            _ = p.nextToken();
+            switch (p.current().tag()) {
+                .asterisk => {
+                    return try p.addNode(.{
+                        .tag = .ptr_type,
+                        .main_token = p.nextToken(),
+                        .data = .{ .lhs = try p.parseTypeExpr(ptr_t) },
+                    });
+                },
+                .open_bracket => {
+                    return try p.parseTypeExpr(ptr_t);
+                },
+                .identifier => {
+                    p.advance();
+                },
+                .eof => {
+                    return ptr_t;
+                },
+                else => {
+                    warn_log("expected ptr or array but found -> {s} : {s}", .{ @tagName(p.current().tag()), p.current().buf });
+                    return ptr_t;
+                },
             }
             return try p.addNode(.{
                 .tag = .ptr_type,
@@ -364,18 +398,39 @@ pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
                 .data = .{ .lhs = base_type },
             });
         },
+
+        // base_t = int num[]
+        //
         .identifier => {
-            const id = @as(u32, @intCast(p.tok_i));
-            const result = Type{ .name = id, .specifier = .user_defined_type };
+            if (base_type != 0) {
+                p.advance();
+                return try p.parseTypeExpr(base_type);
+            }
+            const t_name = @as(u32, @intCast(p.tok_i));
+            const result = Type{ .name = t_name, .specifier = .user_defined_type };
             const base_ty = try p.addNode(.{
                 .tag = .typename,
-                .main_token = id,
+                .main_token = t_name,
                 .type = result,
                 .data = .{},
             });
             p.advance();
+
+            if (p.current().tag() == .identifier) {
+                _ = p.nextToken();
+                var tmp: Node.Index = 0;
+                if (p.eatToken(.open_bracket)) |tok| {
+                    p.tok_i -= 1;
+                    tmp = try p.parseTypeExpr(base_ty);
+                    _ = try p.expectToken(.close_bracket);
+                    p.tok_i = tok - 1;
+                    return tmp;
+                }
+                return base_ty;
+            }
             return try p.parseTypeExpr(base_ty);
         },
+
         .keyword_char => {
             const id = @as(u32, @intCast(p.tok_i));
             const result = Type{ .name = id, .specifier = .char };
@@ -387,11 +442,15 @@ pub fn parseTypeExpr(p: *Parser, base_type: Node.Index) !Node.Index {
             });
         },
         .semicolon, .comma, .equal => {
+            warn_log("foun Semicolon ", .{});
+            return base_type;
+        },
+        .eof => {
             return base_type;
         },
         else => {
-            error_log(" unexpected type : {s}", .{@tagName(p.current().tag())});
-            return error.ParsingFailed;
+            warn_log(" unexpected type : {s}", .{@tagName(p.current().tag())});
+            return base_type;
         },
     }
 }
