@@ -1,0 +1,12 @@
+const def = 2334;
+
+
+fn main(argc: int , argv: []str) -> int {
+	var a: int = 23;
+
+	for a < 3 {
+		printf("Hello World\n");
+	}
+	
+	a = 12;
+}

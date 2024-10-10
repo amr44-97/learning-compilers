@@ -1,0 +1,8 @@
+if 10 + 3 {
+	var x: int = 23;
+	var y: int = 32;
+	if 10 {
+		var y2: int = 32;
+	}
+
+}

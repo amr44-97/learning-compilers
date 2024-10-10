@@ -1,0 +1,4 @@
+fn printf(fmt: string, args: anytype) -> int {
+	args = nill;
+	write(fmt);
+}

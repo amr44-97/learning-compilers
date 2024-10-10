@@ -1,0 +1,16 @@
+---
+Language:        Cpp
+BasedOnStyle:  LLVM
+ColumnLimit:     100
+IndentWidth: 4
+PointerAlignment: Left
+AllowShortIfStatementsOnASingleLine : AllIfsAndElse
+AllowShortCompoundRequirementOnASingleLine: true
+
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+  AlignCaseColons: false
+...
+

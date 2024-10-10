@@ -1,0 +1,11 @@
+{
+	for {
+		print(12);
+	}
+	
+	if 3 {
+		var x : float = 32; 
+	}
+	x = 88;
+	printf(x);
+}
